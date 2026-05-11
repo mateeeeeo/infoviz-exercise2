@@ -23,7 +23,7 @@
     </div>
     <div class="container_r">
         <p></p>
-        <svg id="svg_plot"></svg>
+        <svg id="svg_plot" width="600" height="400"></svg>
     </div>
 </div>
 
@@ -31,9 +31,12 @@
     <label>Indicator:</label>
         <select id="indicator_change" class="dropdown"></select></div>
 <div id="svg_line_plot" class="svg_line_plot">
-
 </div>
-
+<div id="tooltip">
+    <p id="tooltip_country">Country name:</p>
+    <p>PC1: </p>
+    <p>PC2: </p>
+</div>
 
 <script>
     let data = {{ data | safe }};
@@ -42,6 +45,7 @@
     console.log("Principal components, each column is one e.g. column 0 is first PC");
     console.log(pcaRes);
     initMap();
+    initScatter(pcaRes);
 </script>
 
 </body>

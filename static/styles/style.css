@@ -94,3 +94,14 @@ text.title {
     box-shadow: rgba(0, 0, 0, 0.05) 0 0 0 1px, rgb(209, 213, 219) 0 0 0 1px inset;
     opacity: 0.0; font-size: large;
 }
+
+#tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    opacity: 0;
+}
