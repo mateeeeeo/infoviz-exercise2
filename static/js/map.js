@@ -4,7 +4,46 @@ let map = null;
 let mapData = null;
 
 
-function initMap() {
+function initMap(fullData) {
+    
+    if (typeof fullData === 'string') {
+        fullData = JSON.parse(fullData);
+    }
+
+    if (!Array.isArray(fullData) && typeof fullData === 'object') {
+        let arr = [];
+        let colName = Object.keys(fullData);
+        let firstCol = colName[0];
+        
+        let rowIdx = Object.keys(fullData[firstCol]);
+        
+        rowIdx.forEach(idx => {
+            let newRow = {};
+            colName.forEach(col => {
+                newRow[col] = fullData[col][idx];
+            });
+            arr.push(newRow);
+        });
+        
+        fullData = arr; 
+    }
+
+
+    const excludeCols = ["Country Name", "Country Code", "year"];
+    const numFeatures = Object.keys(fullData[0]).filter(k => 
+        !excludeCols.includes(k) && typeof fullData[0][k] === 'number'
+    );
+
+    const select = d3.select("#indicator_change");
+    select.selectAll("option").remove();
+    numFeatures.forEach(f => {
+        select.append("option").text(f).attr("value", f);
+    });
+
+    const dataLookup = {};
+    fullData.forEach(d => {
+        dataLookup[d["Country Code"]] = d; 
+    });
 
     // loads the world map as topojson
     d3.json("../static/data/world-topo.json").then(function (countries) {
@@ -35,6 +74,28 @@ function initMap() {
             .attr('stroke', 'black')
             .attr('stroke-width', 0.5)
             .attr('fill', 'white');
+
+
+        function updateMap(feature) {
+        const extent = d3.extent(fullData, d => d[feature]);
+        const colorScale = d3.scaleSequential(d3.interpolateBlues).domain(extent);
+
+            map.transition().duration(500).attr("fill", d => {
+                let countryCode = d.properties ? d.properties.id : null;
+                let cData = dataLookup[countryCode];
+                
+                if (cData && cData[feature] != null) {
+                    return colorScale(cData[feature]);
+                }
+                return "#ccc";
+            });
+        }
+
+        updateMap(select.property("value"));
+
+        select.on("change", function() {
+            updateMap(this.value);
+        });
     });
 }
 

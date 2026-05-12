@@ -41,10 +41,9 @@ def data():
     pca_df = df[df["year"] == df["year"].max()]
     pca_res = perform_PCA(pca_df)
     print(pca_res)
-    return render_template("index.html", data=df.to_json(), pca_res=pca_res.to_json(orient="records"))
+    return render_template("index.html", data=df.to_json(orient="records"), pca_res=pca_res.to_json(orient="records"))
 
     # return render_template("index.html", data=df.to_json(), pca_data=pca_df.to_json())
-
 
 if __name__ == '__main__':
     app.run()
