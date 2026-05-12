@@ -71,6 +71,10 @@ function initMap(fullData) {
             .data(mapData)
             .enter().append('path')
             .attr('d', path)
+           .attr('id', d => {
+                let code = d.properties ? d.properties.id : null;
+                return code ? `map-${code}` : null;
+            })
             .attr('stroke', 'black')
             .attr('stroke-width', 0.5)
             .attr('fill', 'white');
@@ -153,6 +157,15 @@ function initScatter(pcaData) {
             d3.select(this)
                 .attr("r", 8)
                 .attr("fill", "red");
+
+            let code = d["Country Code"];
+            if(code) {
+                d3.select(`#map-${code}`)
+                    .attr("stroke", "red")
+                    .attr("stroke-width", 2)
+                    .raise(); 
+            }
+
             tooltip.html("Country Name: " + d["Country Name"]);
             tooltip.style("opacity", 1);
         })
@@ -161,10 +174,18 @@ function initScatter(pcaData) {
                 .style("left", (event.pageX + 8) + "px")
                 .style("top", (event.pageY + 8) + "px");
         })
-        .on("mouseout", function () {
+        .on("mouseout", function (event, d) {
             d3.select(this)
                 .attr("r", 5)
                 .attr("fill", "steelblue");
+
+            let code = d["Country Code"];
+            if(code) {
+                d3.select(`#map-${code}`)
+                    .attr("stroke", "black")
+                    .attr("stroke-width", 0.5);
+            }
+
             tooltip.style("opacity", 0);
         })
 }
