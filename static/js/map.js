@@ -85,6 +85,10 @@ function initMap(fullData) {
             .data(mapData)
             .enter().append('path')
             .attr('d', path)
+           .attr('id', d => {
+                let code = d.properties ? d.properties.id : null;
+                return code ? `map-${code}` : null;
+            })
             .attr('stroke', 'black')
             .attr('stroke-width', 0.5)
             .attr('fill', 'white')
