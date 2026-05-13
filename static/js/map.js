@@ -2,8 +2,8 @@ let mapWidth = 800;
 let mapHeight = 500;
 let map = null;
 let mapData = null;
-let mapLookup = {}; 
-let scatterDotsLookup = {}; 
+let mapLookup = {};
+let scatterDotsLookup = {};
 let fullDataGlobal = null;
 let selectedCountryCode = null;
 let brushedCountries = new Set();
@@ -11,10 +11,11 @@ let pcaDataGlobal = null; // for brush operations
 let currentYear = 2020; // slider
 let dataLookupGlobal = null; // for map updates
 let updateMapFunction = null;
-
+let tooltip = null;
 
 function initMap(fullData) {
-    
+    tooltip = d3.select("#tooltip");
+
     if (typeof fullData === 'string') {
         fullData = JSON.parse(fullData);
     }
@@ -23,9 +24,9 @@ function initMap(fullData) {
         let arr = [];
         let colName = Object.keys(fullData);
         let firstCol = colName[0];
-        
+
         let rowIdx = Object.keys(fullData[firstCol]);
-        
+
         rowIdx.forEach(idx => {
             let newRow = {};
             colName.forEach(col => {
@@ -33,15 +34,15 @@ function initMap(fullData) {
             });
             arr.push(newRow);
         });
-        
-        fullData = arr; 
+
+        fullData = arr;
     }
 
     fullDataGlobal = fullData;
 
 
     const excludeCols = ["Country Name", "Country Code", "year"];
-    const numFeatures = Object.keys(fullData[0]).filter(k => 
+    const numFeatures = Object.keys(fullData[0]).filter(k =>
         !excludeCols.includes(k) && typeof fullData[0][k] === 'number'
     );
 
@@ -53,9 +54,9 @@ function initMap(fullData) {
 
     const dataLookup = {};
     fullData.forEach(d => {
-        dataLookup[d["Country Code"]] = d; 
+        dataLookup[d["Country Code"]] = d;
     });
-    
+
     dataLookupGlobal = dataLookup;
     d3.json("../static/data/world-topo.json").then(function (countries) {
         let projection = d3.geoEqualEarth()
@@ -71,14 +72,12 @@ function initMap(fullData) {
 
         mapData = topojson.feature(countries, countries.objects.countries).features;
 
-
-
         map = svg.append("g")
             .selectAll('path')
             .data(mapData)
             .enter().append('path')
             .attr('d', path)
-           .attr('id', d => {
+            .attr('id', d => {
                 let code = d.properties ? d.properties.id : null;
                 return code ? `map-${code}` : null;
             })
@@ -87,7 +86,7 @@ function initMap(fullData) {
             .attr('fill', 'white')
             .attr('data-country-code', d => d.properties ? d.properties.id : null);
 
-        map.each(function(d) {
+        map.each(function (d) {
             let countryCode = d.properties ? d.properties.id : null;
             if (countryCode) {
                 mapLookup[countryCode] = d3.select(this);
@@ -95,49 +94,84 @@ function initMap(fullData) {
         });
 
         map.style("cursor", "pointer")
-            .on("mouseover", function(event, d) {
-                let countryCode = d.properties ? d.properties.id : null;
+            .on("mouseover", function (event, d) {
+                let countryCode = null;
+                if (d.properties) {
+                    console.log();
+                    countryCode = d.properties.id
+                } else {
+                    return;
+                }
                 if (countryCode && scatterDotsLookup[countryCode]) {
                     scatterDotsLookup[countryCode]
                         .attr("r", 8)
                         .attr("fill", "red");
                 }
+
+
+                const data = dataLookupGlobal[d.properties.id];
+                if(!data) return; 
+                let i = 0;
+                let htmlStr = `Country Name: ${data["Country Name"]}<br/>`;
+                for (const [key, value] of Object.entries(data)) {
+                    if (key === "Country Name") {
+                        continue;
+                    }
+
+                    htmlStr += `${key}: ${value}<br/>`;
+
+                    if (i > 8) {
+                        break;
+                    }
+                    i++;
+                }
+                tooltip.html(htmlStr);
+                tooltip.style("opacity", 1);
             })
-            .on("mouseout", function(event, d) {
+            .on("mousemove", (event, d) => {
+                tooltip.style("left", (event.pageX + 8) + "px").style("top", (event.pageY + 8) + "px")
+            })
+            .on("mouseout", function (event, d) {
                 let countryCode = d.properties ? d.properties.id : null;
                 if (countryCode && scatterDotsLookup[countryCode]) {
                     scatterDotsLookup[countryCode]
                         .attr("r", 5)
                         .attr("fill", "steelblue");
                 }
+                tooltip.style("opacity", 0);
             })
-            .on("click", function(event, d) {
+            .on("click", function (event, d) {
                 let countryCode = d.properties ? d.properties.id : null;
                 let countryName = null;
-                
+
                 fullDataGlobal.forEach(row => {
                     if (row["Country Code"] === countryCode) {
                         countryName = row["Country Name"];
                     }
                 });
-                
+
                 if (countryName) {
                     selectedCountryCode = countryCode;
                     renderLineChart(countryName, countryCode);
                 }
-            });
+            })
+            ;
 
 
         function updateMap(feature) {
             let yearFilteredData = fullData.filter(d => d["year"] === currentYear);
             const extent = d3.extent(yearFilteredData, d => d[feature]);
             const colorScale = d3.scaleSequential(d3.interpolateBlues).domain(extent);
+            const dataLookup = {};
+            yearFilteredData.forEach(d => {
+                dataLookup[d["Country Code"]] = d;
+            });
 
-            map.transition()
-                .duration(500)
-                .attr("fill", d => {
+            dataLookupGlobal = dataLookup;
+            
+            map.attr("fill", d => {
                     let countryCode = d.properties ? d.properties.id : null;
-                    let yearData = fullData.find(row => 
+                    let yearData = fullData.find(row =>
                         row["Country Code"] === countryCode && row["year"] === currentYear
                     );
                     if (yearData && yearData[feature] != null) {
@@ -146,11 +180,11 @@ function initMap(fullData) {
                     return "#ccc";
                 });
         }
-        
+
         updateMapFunction = updateMap;
         updateMap(select.property("value"));
 
-        select.on("change", function() {
+        select.on("change", function () {
             updateMap(this.value);
             if (selectedCountryCode) {
                 let countryName = null;
@@ -164,12 +198,12 @@ function initMap(fullData) {
                 }
             }
         });
-        
-        d3.select("#year_slider").on("input", function() {
+
+        d3.select("#year_slider").on("input", function () {
             currentYear = parseInt(this.value);
             d3.select("#year_label").text(currentYear);
             updateMap(select.property("value"));
-            
+
             if (selectedCountryCode) {
                 let countryName = null;
                 fullDataGlobal.forEach(row => {
@@ -181,7 +215,7 @@ function initMap(fullData) {
                     renderLineChart(countryName, selectedCountryCode);
                 }
             }
-            
+
             if (brushedCountries.size > 0) {
                 renderMultiLineChart(Array.from(brushedCountries));
             }
@@ -191,7 +225,7 @@ function initMap(fullData) {
 
 function initScatter(pcaData) {
     pcaDataGlobal = pcaData;
-    
+
     const margin = { top: 20, right: 20, bottom: 40, left: 40 };
     const svg = d3.select("#svg_plot");
     const width = +svg.attr("width") - margin.left - margin.right;
@@ -213,10 +247,7 @@ function initScatter(pcaData) {
 
     g.append("g")
         .call(d3.axisLeft(y));
-    console.log(pcaData.map(d => d[0])[0])
 
-    const tooltip = d3.select("#tooltip");
-    // Dots
     const dots = g.selectAll("circle")
         .data(pcaData)
         .enter()
@@ -227,14 +258,13 @@ function initScatter(pcaData) {
         .attr("fill", "steelblue")
         .style("cursor", "pointer")
         .on("mouseover", function (event, d) {
-            console.log("MOUSE OVER")
             if (!brushedCountries.has(d["Country Code"])) {
                 d3.select(this)
                     .attr("r", 8)
                     .attr("fill", "red");
                 tooltip.html("Country Name: " + d["Country Name"]);
                 tooltip.style("opacity", 1);
-                
+
                 let countryCode = d["Country Code"];
                 if (countryCode && mapLookup[countryCode]) {
                     mapLookup[countryCode]
@@ -255,7 +285,7 @@ function initScatter(pcaData) {
                     .attr("r", 5)
                     .attr("fill", "steelblue");
                 tooltip.style("opacity", 0);
-                
+
                 let countryCode = d["Country Code"];
                 if (countryCode && mapLookup[countryCode]) {
                     mapLookup[countryCode]
@@ -265,49 +295,48 @@ function initScatter(pcaData) {
                 }
             }
         });
-    
-    dots.each(function(d) {
+
+    dots.each(function (d) {
         let countryCode = d["Country Code"];
         if (countryCode) {
             scatterDotsLookup[countryCode] = d3.select(this);
         }
     });
-    
+
     const brush = d3.brush()
         .extent([[0, 0], [width, height]])
         .on("brush", brushed)
         .on("end", brushEnd);
-    
+
     g.append("g")
         .attr("class", "brush")
         .call(brush);
 
     g.selectAll("circle").raise(); // for tooltip to work, scatterplot dots are above overlay
 
-    
+
     function brushed(event) {
         if (!event.selection) return;
-        
+
         const [[x0, y0], [x1, y1]] = event.selection;
         brushedCountries.clear();
         dots.attr("fill", d => {
             return "steelblue";
         }).attr("r", 5);
-        
-        // Reset all map countries
+
         d3.selectAll("path").attr("fill", "white")
             .attr("stroke-width", 0.5)
             .attr("stroke", "black");
-        
-        dots.each(function(d) {
+
+        dots.each(function (d) {
             const px = x(d[0]);
             const py = y(d[1]);
-            
+
             if (px >= x0 && px <= x1 && py >= y0 && py <= y1) {
                 brushedCountries.add(d["Country Code"]);
             }
         });
-        
+
         dots.attr("fill", d => {
             if (brushedCountries.has(d["Country Code"])) {
                 return "red";
@@ -319,7 +348,7 @@ function initScatter(pcaData) {
             }
             return 5;
         });
-        
+
         brushedCountries.forEach(countryCode => {
             if (mapLookup[countryCode]) {
                 mapLookup[countryCode]
@@ -328,19 +357,19 @@ function initScatter(pcaData) {
                     .attr("stroke", "red");
             }
         });
-        
+
         if (brushedCountries.size > 0) {
             renderMultiLineChart(Array.from(brushedCountries));
         }
     }
-    
+
     function brushEnd(event) {
         if (!event.selection) {
             brushedCountries.clear();
-            
+
             dots.attr("fill", "steelblue")
                 .attr("r", 5);
-            
+
             d3.selectAll("path").attr("fill", "white")
                 .attr("stroke-width", 0.5)
                 .attr("stroke", "black");
@@ -351,12 +380,11 @@ function initScatter(pcaData) {
 
 function renderLineChart(countryName, countryCode) {
     let countryData = fullDataGlobal.filter(d => d["Country Code"] === countryCode);
-    
+
     if (countryData.length === 0) {
-        console.log("No data found for country: " + countryName);
         return;
     }
-    
+
     countryData.sort((a, b) => a["year"] - b["year"]);
     let indicator = d3.select("#indicator_change").property("value");;
     let lineData = countryData.map(d => ({
@@ -364,26 +392,23 @@ function renderLineChart(countryName, countryCode) {
         value: d[indicator]
     })).filter(d => d.value != null && !isNaN(d.value));
     if (lineData.length === 0) {
-        console.log("No data found for indicator: " + indicator);
         return;
     }
-    
+
     let container = d3.select("#svg_line_plot");
-    
-    // Set dimensions
     const margin = { top: 40, right: 30, bottom: 40, left: 70 };
     const width = 900 - margin.left - margin.right;
     const height = 300 - margin.top - margin.bottom;
-    
+
     let svg = container.selectAll("svg").data([null])
-    
+
     svg.exit().remove();
     svg = svg.enter()
         .append("svg")
         .attr("width", width + margin.left + margin.right)
         .attr("height", height + margin.top + margin.bottom)
         .merge(svg);
-    
+
     let title = svg.selectAll(".chart-title").data([null]);
     title.exit().remove();
     title.enter()
@@ -396,7 +421,7 @@ function renderLineChart(countryName, countryCode) {
         .style("font-size", "16px")
         .style("font-weight", "bold")
         .text(`${countryName} - ${indicator} (1960-2020)`)
-    
+
     let g = svg.selectAll(".chart-group").data([null]);
     g = g.enter()
         .append("g")
@@ -405,18 +430,18 @@ function renderLineChart(countryName, countryCode) {
         .merge(g);
     const yMin = Math.min(0, d3.min(lineData, d => d.value));
     const yMax = d3.max(lineData, d => d.value);
-    
+
     const xScale = d3.scaleLinear()
         .domain(d3.extent(lineData, d => d.year))
         .range([0, width]);
     const yScale = d3.scaleLinear()
         .domain([yMin, yMax * 1.1])
         .range([height, 0]);
-    
+
     const line = d3.line()
         .x(d => xScale(d.year))
         .y(d => yScale(d.value));
-    
+
     let xAxis = g.selectAll(".x-axis").data([null]);
     xAxis.exit().remove();
     xAxis = xAxis.enter()
@@ -425,7 +450,7 @@ function renderLineChart(countryName, countryCode) {
         .attr("transform", `translate(0,${height})`)
         .merge(xAxis)
         .call(d3.axisBottom(xScale).tickFormat(d3.format("d")));
-    
+
     xAxis.selectAll(".x-label").data([null]).enter()
         .append("text")
         .attr("class", "x-label")
@@ -435,7 +460,7 @@ function renderLineChart(countryName, countryCode) {
         .style("text-anchor", "middle")
         .style("font-size", "12px")
         .text("Year")
-    
+
     let yAxis = g.selectAll(".y-axis").data([null]);
     yAxis.exit().remove();
     yAxis = yAxis.enter()
@@ -443,7 +468,7 @@ function renderLineChart(countryName, countryCode) {
         .attr("class", "y-axis")
         .merge(yAxis)
         .call(d3.axisLeft(yScale));
-    
+
     yAxis.selectAll(".y-label").data([null]).enter()
         .append("text")
         .attr("class", "y-label")
@@ -455,7 +480,7 @@ function renderLineChart(countryName, countryCode) {
         .style("text-anchor", "middle")
         .style("font-size", "12px")
         .text(indicator);
-    
+
     let path = g.selectAll(".line-path").data([lineData]);
     path.exit().remove();
     path.enter()
@@ -469,7 +494,7 @@ function renderLineChart(countryName, countryCode) {
         .attr("stroke-width", 2.5)
         .attr("stroke-linecap", "round")
         .attr("d", line);
-    
+
     let circles = g.selectAll(".dot").data(lineData, (d, i) => i);
     circles.exit().remove();
     circles.enter()
@@ -488,16 +513,16 @@ function renderMultiLineChart(countryCodes) {
     let allCountryData = [];
     const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
     let colorIndex = 0;
-    
+
     countryCodes.forEach(countryCode => {
         let countryData = fullDataGlobal.filter(d => d["Country Code"] === countryCode);
-        
+
         if (countryData.length > 0) {
             let countryName = countryData[0]["Country Name"];
             countryData.sort((a, b) => a["year"] - b["year"]);
-            
+
             let indicator = d3.select("#indicator_change").property("value");
-            
+
             let lineData = countryData.map(d => ({
                 year: d["year"],
                 value: d[indicator],
@@ -505,21 +530,20 @@ function renderMultiLineChart(countryCodes) {
                 countryCode: countryCode,
                 color: colorScale(colorIndex++)
             })).filter(d => d.value != null && !isNaN(d.value));
-            
+
             allCountryData = allCountryData.concat(lineData);
         }
     });
-    
+
     if (allCountryData.length === 0) {
-        console.log("No data found for brushed countries");
         return;
     }
-    
+
     let container = d3.select("#svg_line_plot");
     const margin = { top: 40, right: 30, bottom: 40, left: 70 };
     const width = 900 - margin.left - margin.right;
     const height = 300 - margin.top - margin.bottom;
-    
+
     let svg = container.selectAll("svg").data([null]);
     svg.exit().remove();
     svg = svg.enter()
@@ -527,7 +551,7 @@ function renderMultiLineChart(countryCodes) {
         .attr("width", width + margin.left + margin.right)
         .attr("height", height + margin.top + margin.bottom)
         .merge(svg);
-    
+
     const indicator = d3.select("#indicator_change").property("value");
     let title = svg.selectAll(".chart-title").data([null]);
     title.exit().remove();
@@ -541,31 +565,29 @@ function renderMultiLineChart(countryCodes) {
         .style("font-size", "16px")
         .style("font-weight", "bold")
         .text(`Brushed Countries - ${indicator} (1960-2020)`);
-    
+
     let g = svg.selectAll(".chart-group").data([null]);
     g = g.enter()
         .append("g")
         .attr("class", "chart-group")
         .attr("transform", `translate(${margin.left},${margin.top})`)
         .merge(g);
-    
+
     const yMin = Math.min(0, d3.min(allCountryData, d => d.value));
     const yMax = d3.max(allCountryData, d => d.value);
-    
+
     const xScale = d3.scaleLinear()
         .domain(d3.extent(allCountryData, d => d.year))
         .range([0, width]);
-    
+
     const yScale = d3.scaleLinear()
         .domain([yMin, yMax * 1.1])
         .range([height, 0]);
-    
-    // Create line generator
+
     const line = d3.line()
         .x(d => xScale(d.year))
         .y(d => yScale(d.value));
-    
-    // Update X axis
+
     let xAxis = g.selectAll(".x-axis").data([null]);
     xAxis.exit().remove();
     xAxis = xAxis.enter()
@@ -574,7 +596,7 @@ function renderMultiLineChart(countryCodes) {
         .attr("transform", `translate(0,${height})`)
         .merge(xAxis)
         .call(d3.axisBottom(xScale).tickFormat(d3.format("d")));
-    
+
     xAxis.selectAll(".x-label").data([null]).enter()
         .append("text")
         .attr("class", "x-label")
@@ -584,7 +606,7 @@ function renderMultiLineChart(countryCodes) {
         .style("text-anchor", "middle")
         .style("font-size", "12px")
         .text("Year");
-    
+
     let yAxis = g.selectAll(".y-axis").data([null]);
     yAxis.exit().remove();
     yAxis = yAxis.enter()
@@ -592,7 +614,7 @@ function renderMultiLineChart(countryCodes) {
         .attr("class", "y-axis")
         .merge(yAxis)
         .call(d3.axisLeft(yScale));
-    
+
     yAxis.selectAll(".y-label").data([null]).enter()
         .append("text")
         .attr("class", "y-label")
@@ -639,13 +661,13 @@ function renderMultiLineChart(countryCodes) {
         .attr("font-size", 10)
         .attr("text-anchor", "end")
         .merge(legendGroup);
-    
+
     let legend = legendGroup.selectAll(".legend-item").data(Array.from(groupedData.keys()), d => d);
     legend.exit().remove();
     let legendEnter = legend.enter()
         .append("g")
         .attr("class", "legend-item");
-    
+
     legendEnter.merge(legend)
         .attr("transform", (d, i) => `translate(0,${i * 20})`);
     legendEnter.append("rect")
