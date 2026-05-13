@@ -12,6 +12,8 @@ let currentYear = 2020; // slider
 let dataLookupGlobal = null; // for map updates
 let updateMapFunction = null;
 let tooltip = null;
+let featureGlobal = null;
+let colorScaleGlobal = null;
 
 function initMap(fullData) {
     tooltip = d3.select("#tooltip");
@@ -110,7 +112,7 @@ function initMap(fullData) {
 
 
                 const data = dataLookupGlobal[d.properties.id];
-                if(!data) return; 
+                if (!data) return;
                 let i = 0;
                 let htmlStr = `Country Name: ${data["Country Name"]}<br/>`;
                 for (const [key, value] of Object.entries(data)) {
@@ -159,26 +161,29 @@ function initMap(fullData) {
 
 
         function updateMap(feature) {
+            featureGlobal = feature;
+
             let yearFilteredData = fullData.filter(d => d["year"] === currentYear);
             const extent = d3.extent(yearFilteredData, d => d[feature]);
             const colorScale = d3.scaleSequential(d3.interpolateBlues).domain(extent);
+            colorScaleGlobal = colorScale;
             const dataLookup = {};
             yearFilteredData.forEach(d => {
                 dataLookup[d["Country Code"]] = d;
             });
 
             dataLookupGlobal = dataLookup;
-            
+
             map.attr("fill", d => {
-                    let countryCode = d.properties ? d.properties.id : null;
-                    let yearData = fullData.find(row =>
-                        row["Country Code"] === countryCode && row["year"] === currentYear
-                    );
-                    if (yearData && yearData[feature] != null) {
-                        return colorScale(yearData[feature]);
-                    }
-                    return "#ccc";
-                });
+                let countryCode = d.properties ? d.properties.id : null;
+                let yearData = fullData.find(row =>
+                    row["Country Code"] === countryCode && row["year"] === currentYear
+                );
+                if (yearData && yearData[feature] != null) {
+                    return colorScale(yearData[feature]);
+                }
+                return "#ccc";
+            });
         }
 
         updateMapFunction = updateMap;
@@ -289,7 +294,15 @@ function initScatter(pcaData) {
                 let countryCode = d["Country Code"];
                 if (countryCode && mapLookup[countryCode]) {
                     mapLookup[countryCode]
-                        .attr("fill", "white")
+                        .attr("fill", d => {
+                            console.log(dataLookupGlobal)
+                            let countryCode = d.properties ? d.properties.id : null;
+                            let yearData = dataLookupGlobal[countryCode];
+                            if (yearData && yearData[featureGlobal] != null) {
+                                return colorScaleGlobal(yearData[featureGlobal]);
+                            }
+                            return "#ccc";
+                        })
                         .attr("stroke-width", 0.5)
                         .attr("stroke", "black");
                 }
